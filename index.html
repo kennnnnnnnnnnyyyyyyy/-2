@@ -86,34 +86,47 @@
     class FeedingRecords {
         constructor() {
             this.records = [];
-            this.loadRecords();
-            
-            // 添加实时数据监听
-            const watchOptions = {
-                onChange: snapshot => {
-                    this.records = snapshot.docs.map(doc => ({
-                        id: doc.id,
-                        ...doc.data()
-                    }));
-                    if (window.app) {
-                        window.app.refreshRecords();
-                    }
-                },
-                onError: error => {
-                    console.error("监听错误:", error);
-                }
-            };
-            
-            db.collection('feeding_records').watch(watchOptions);
+            this.initDatabase();
+        }
+
+        async initDatabase() {
+            try {
+                // 确保登录
+                const auth = app.auth();
+                await auth.signInAnonymously();
+                this.db = app.database();
+                
+                // 加载初始数据
+                await this.loadRecords();
+                
+                // 设置实时监听
+                this.db.collection('feeding_records')
+                    .watch({
+                        onChange: this.handleDataChange.bind(this),
+                        onError: (error) => console.error("监听错误:", error)
+                    });
+            } catch (error) {
+                console.error("初始化数据库失败:", error);
+            }
+        }
+
+        handleDataChange(snapshot) {
+            this.records = snapshot.docs.map(doc => ({
+                id: doc._id,
+                ...doc
+            }));
+            if (window.app) {
+                window.app.refreshRecords();
+            }
         }
 
         async loadRecords() {
             try {
-                const result = await db.collection('feeding_records')
+                const { data } = await this.db.collection('feeding_records')
                     .orderBy('timestamp', 'desc')
                     .get();
                 
-                this.records = result.data.map(doc => ({
+                this.records = data.map(doc => ({
                     id: doc._id,
                     ...doc
                 }));
@@ -133,11 +146,19 @@
                     notes
                 };
                 
-                await db.collection('feeding_records').add(record);
+                console.log("准备添加记录:", record);
+                
+                const result = await this.db.collection('feeding_records')
+                    .add(record);
+                
+                console.log("记录添加成功:", result);
+                
+                // 重新加载数据
                 await this.loadRecords();
                 return record;
             } catch (error) {
                 console.error("添加记录失败:", error);
+                alert("添加记录失败: " + error.message);
                 throw error;
             }
         }
@@ -320,6 +341,26 @@
             this.updateStats();
         }
     }
+
+    // 修改初始化代码
+    window.onload = async function() {
+        try {
+            // 初始化腾讯云
+            window.app = tcb.init({
+                env: '你的环境ID' // 替换为你的环境ID
+            });
+            
+            // 初始化应用
+            const feedingRecords = new FeedingRecords();
+            const ui = new FeedingUI(feedingRecords);
+            
+            // 保存到全局变量
+            window.feedingApp = ui;
+        } catch (error) {
+            console.error("应用初始化失败:", error);
+            alert("应用初始化失败，请刷新页面重试");
+        }
+    };
 </script>
 <body>
     <div class="container">
