@@ -56,7 +56,7 @@
 <script>
     // 初始化腾讯云开发
     const app = tcb.init({
-        env: 'ceshi1-9g6m2y0td5a6600b' // 从腾讯云开发控制台获取
+        env: 'ceshi1-9g6m2y0td5a6600b' // 这里需要替换为你从腾讯云开发控制台获取的环境ID
     });
     const db = app.database();
     const _ = db.command;
@@ -86,58 +86,29 @@
     class FeedingRecords {
         constructor() {
             this.records = [];
-            this.initDatabase();
+            this.init();
         }
 
-        async initDatabase() {
+        async init() {
             try {
                 // 确保登录
                 const auth = app.auth();
-                await auth.signInAnonymously();
+                const loginState = await auth.signInAnonymously();
+                console.log('登录成功:', loginState);
+
                 this.db = app.database();
-                
-                // 加载初始数据
                 await this.loadRecords();
-                
-                // 设置实时监听
-                this.db.collection('feeding_records')
-                    .watch({
-                        onChange: this.handleDataChange.bind(this),
-                        onError: (error) => console.error("监听错误:", error)
-                    });
             } catch (error) {
-                console.error("初始化数据库失败:", error);
-            }
-        }
-
-        handleDataChange(snapshot) {
-            this.records = snapshot.docs.map(doc => ({
-                id: doc._id,
-                ...doc
-            }));
-            if (window.app) {
-                window.app.refreshRecords();
-            }
-        }
-
-        async loadRecords() {
-            try {
-                const { data } = await this.db.collection('feeding_records')
-                    .orderBy('timestamp', 'desc')
-                    .get();
-                
-                this.records = data.map(doc => ({
-                    id: doc._id,
-                    ...doc
-                }));
-                return this.records;
-            } catch (error) {
-                console.error("加载记录失败:", error);
-                return [];
+                console.error('初始化失败:', error);
             }
         }
 
         async addRecord(amount, foodType, notes) {
+            if (!this.db) {
+                console.error('数据库未初始化');
+                return;
+            }
+
             try {
                 const record = {
                     timestamp: new Date().toISOString(),
@@ -145,21 +116,34 @@
                     foodType,
                     notes
                 };
-                
-                console.log("准备添加记录:", record);
-                
-                const result = await this.db.collection('feeding_records')
-                    .add(record);
-                
-                console.log("记录添加成功:", result);
-                
-                // 重新加载数据
+
+                // 直接使用 this.db
+                const result = await this.db.collection('feeding_records').add({
+                    data: record // 注意这里需要包装在 data 对象中
+                });
+
+                console.log('添加记录成功:', result);
                 await this.loadRecords();
                 return record;
             } catch (error) {
-                console.error("添加记录失败:", error);
-                alert("添加记录失败: " + error.message);
+                console.error('添加记录失败:', error);
                 throw error;
+            }
+        }
+
+        async loadRecords() {
+            if (!this.db) {
+                console.error('数据库未初始化');
+                return [];
+            }
+
+            try {
+                const { data } = await this.db.collection('feeding_records').get();
+                this.records = data;
+                return this.records;
+            } catch (error) {
+                console.error('加载记录失败:', error);
+                return [];
             }
         }
 
@@ -343,24 +327,21 @@
     }
 
     // 修改初始化代码
-    window.onload = async function() {
+    async function initializeApp() {
         try {
-            // 初始化腾讯云
-            window.app = tcb.init({
-                env: 'ceshi1-9g6m2y0td5a6600b' // 替换为你的环境ID
-            });
+            const auth = app.auth();
+            await auth.signInAnonymously();
+            console.log('初始化成功');
             
-            // 初始化应用
-            const feedingRecords = new FeedingRecords();
-            const ui = new FeedingUI(feedingRecords);
-            
-            // 保存到全局变量
-            window.feedingApp = ui;
+            // 创建应用实例
+            window.feedingApp = new FeedingUI(new FeedingRecords());
         } catch (error) {
-            console.error("应用初始化失败:", error);
-            alert("应用初始化失败，请刷新页面重试");
+            console.error('初始化失败:', error);
         }
-    };
+    }
+
+    // 4. 页面加载时初始化
+    window.onload = initializeApp;
 </script>
 <body>
     <div class="container">
