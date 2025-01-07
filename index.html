@@ -56,10 +56,9 @@
 <script>
     // 初始化腾讯云开发
     const app = tcb.init({
-        env: 'ceshi1-9g6m2y0td5a6600b' // 这里需要替换为你从腾讯云开发控制台获取的环境ID
+        env: 'ceshi1-9g6m2y0td5a6600b'
     });
-    const db = app.database();
-    const _ = db.command;
+    let db; // 声明一个全局 db 变量
 
     // 登录匿名用户
     app.auth().signInAnonymously().then(() => {
@@ -119,7 +118,7 @@
 
                 // 直接使用 this.db
                 const result = await this.db.collection('feeding_records').add({
-                    data: record // 注意这里需要包装在 data 对象中
+                    data: record
                 });
 
                 console.log('添加记录成功:', result);
@@ -326,7 +325,7 @@
         }
     }
 
-    // 修改初始化代码
+    // 初始化函数
     async function initializeApp() {
         try {
             const auth = app.auth();
@@ -340,7 +339,7 @@
         }
     }
 
-    // 4. 页面加载时初始化
+    // 页面加载时初始化
     window.onload = initializeApp;
 </script>
 <body>
