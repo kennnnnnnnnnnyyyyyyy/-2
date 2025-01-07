@@ -114,18 +114,30 @@
         async addRecord(amount, foodType, notes) {
             try {
                 const record = {
-                    timestamp: new Date().toISOString(),
+                    timestamp: firebase.firestore.Timestamp.now(),  // 使用 Firestore 时间戳
                     amount: parseInt(amount),
                     foodType,
                     notes
                 };
                 
-                await db.collection('feeding_records').add(record);
+                // 添加错误处理和重试逻辑
+                let retries = 3;
+                while (retries > 0) {
+                    try {
+                        await db.collection('feeding_records').add(record);
+                        console.log('记录添加成功');
+                        break;
+                    } catch (error) {
+                        retries--;
+                        if (retries === 0) throw error;
+                        await new Promise(resolve => setTimeout(resolve, 1000));  // 等待1秒后重试
+                    }
+                }
+                
                 await this.loadRecords();
                 return record;
             } catch (error) {
-                console.error("Error adding record:", error);
-                alert("添加记录失败，请重试");
+                console.error("添加记录失败:", error);
                 throw error;
             }
         }
@@ -195,29 +207,37 @@
         }
 
         setupEventListeners() {
-            this.form.addEventListener('submit', (e) => {
+            // 修改提交事件处理
+            this.form.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                this.handleSubmit();
+                try {
+                    const amount = document.getElementById('amount').value;
+                    const foodType = document.getElementById('foodType').value;
+                    const notes = document.getElementById('notes').value;
+
+                    if (!amount || amount <= 0) {
+                        alert('请输入有效的喂养量');
+                        return;
+                    }
+
+                    // 显示加载状态
+                    const submitButton = this.form.querySelector('button[type="submit"]');
+                    const originalText = submitButton.textContent;
+                    submitButton.disabled = true;
+                    submitButton.textContent = '添加中...';
+
+                    await this.records.addRecord(amount, foodType, notes);
+                    this.form.reset();
+                    
+                    // 恢复按钮状态
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalText;
+                    
+                } catch (error) {
+                    console.error('提交失败:', error);
+                    alert('添加记录失败，请重试');
+                }
             });
-        }
-
-        async handleSubmit() {
-            const amount = document.getElementById('amount').value;
-            const foodType = document.getElementById('foodType').value;
-            const notes = document.getElementById('notes').value;
-
-            if (!amount || amount <= 0) {
-                alert('请输入有效的喂养量');
-                return;
-            }
-
-            try {
-                await this.records.addRecord(amount, foodType, notes);
-                this.refreshRecords();
-                this.form.reset();
-            } catch (error) {
-                console.error("Error in handleSubmit:", error);
-            }
         }
 
         setupCharts() {
