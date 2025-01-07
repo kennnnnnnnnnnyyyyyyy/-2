@@ -71,16 +71,39 @@
     class FeedingRecords {
         constructor() {
             this.records = [];
-            this.loadRecords();
+            // 立即加载数据
+            this.loadRecords().then(() => {
+                // 数据加载完成后刷新界面
+                if (app) {
+                    app.refreshRecords();
+                }
+            });
+
+            // 添加实时监听
+            db.collection('feeding_records')
+                .onSnapshot((snapshot) => {
+                    this.records = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    // 数据更新时刷新界面
+                    if (app) {
+                        app.refreshRecords();
+                    }
+                });
         }
 
         async loadRecords() {
             try {
-                const snapshot = await db.collection('feeding_records').orderBy('timestamp', 'desc').get();
+                const snapshot = await db.collection('feeding_records')
+                    .orderBy('timestamp', 'desc')
+                    .get();
+                
                 this.records = snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 }));
+                
                 return this.records;
             } catch (error) {
                 console.error("Error loading records:", error);
