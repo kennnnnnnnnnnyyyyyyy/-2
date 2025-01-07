@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>婴儿喂养记录</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            padding-bottom: 70px; /* 为底部导航留出空间 */
+            background-color: #f8f9fa;
+        }
+        .nav-pills .nav-link.active {
+            background-color: #007bff;
+        }
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .chart-container {
+            height: 300px;
+            margin-bottom: 20px;
+        }
+        .stats-card {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        .stats-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stats-label {
+            font-size: 14px;
+            color: #6c757d;
+        }
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+<!-- 在 </body> 前添加以下 JavaScript 代码 -->
+<script>
+    // Firebase 配置
+    const firebaseConfig = {
+        apiKey: "AIzaSyCVRKjIlYe0Q5f5sXT-CnVoH8bs3IwD2fo",
+        authDomain: "baby-tracker-f8409.firebaseapp.com",
+        projectId: "baby-tracker-f8409",
+        storageBucket: "baby-tracker-f8409.firebasestorage.app",
+        messagingSenderId: "116145937226",
+        appId: "1:116145937226:web:bcf7c99fd0bed658e43fb3"
+    };
+
+    // 初始化 Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // 数据存储类
+    class FeedingRecords {
+        constructor() {
+            this.records = [];
+            this.loadRecords();
+        }
+
+        async loadRecords() {
+            try {
+                const snapshot = await db.collection('feeding_records').orderBy('timestamp', 'desc').get();
+                this.records = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                return this.records;
+            } catch (error) {
+                console.error("Error loading records:", error);
+                return [];
+            }
+        }
+
+        async addRecord(amount, foodType, notes) {
+            try {
+                const record = {
+                    timestamp: new Date().toISOString(),
+                    amount: parseInt(amount),
+                    foodType,
+                    notes
+                };
+                
+                await db.collection('feeding_records').add(record);
+                await this.loadRecords();
+                return record;
+            } catch (error) {
+                console.error("Error adding record:", error);
+                alert("添加记录失败，请重试");
+                throw error;
+            }
+        }
+
+        getTodayRecords() {
+            const today = new Date().toDateString();
+            return this.records.filter(record => 
+                new Date(record.timestamp).toDateString() === today
+            ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        }
+
+        getWeeklyStats() {
+            const days = [];
+            const amounts = [];
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const dayRecords = this.records.filter(record => 
+                    new Date(record.timestamp).toDateString() === date.toDateString()
+                );
+                days.push(date.toLocaleDateString('zh-CN', { weekday: 'short' }));
+                amounts.push(dayRecords.reduce((sum, record) => sum + record.amount, 0));
+            }
+            return { days, amounts };
+        }
+
+        getTypeDistribution() {
+            const today = new Date().toDateString();
+            const todayRecords = this.records.filter(record => 
+                new Date(record.timestamp).toDateString() === today
+            );
+            
+            const typeCounts = {};
+            todayRecords.forEach(record => {
+                typeCounts[record.foodType] = (typeCounts[record.foodType] || 0) + record.amount;
+            });
+            
+            return {
+                labels: Object.keys(typeCounts),
+                data: Object.values(typeCounts)
+            };
+        }
+
+        getTodayStats() {
+            const todayRecords = this.getTodayRecords();
+            const total = todayRecords.reduce((sum, record) => sum + record.amount, 0);
+            const count = todayRecords.length;
+            const avg = count > 0 ? Math.round(total / count) : 0;
+            
+            return { total, count, avg };
+        }
+
+        save() {
+            localStorage.setItem('feedingRecords', JSON.stringify(this.records));
+        }
+    }
+
+    // 界面类
+    class FeedingUI {
+        constructor(records) {
+            this.records = records;
+            this.form = document.getElementById('feedingForm');
+            this.recordsList = document.getElementById('recordsList');
+            this.setupCharts();
+            this.setupEventListeners();
+            this.refreshRecords();
+        }
+
+        setupEventListeners() {
+            this.form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleSubmit();
+            });
+        }
+
+        async handleSubmit() {
+            const amount = document.getElementById('amount').value;
+            const foodType = document.getElementById('foodType').value;
+            const notes = document.getElementById('notes').value;
+
+            if (!amount || amount <= 0) {
+                alert('请输入有效的喂养量');
+                return;
+            }
+
+            try {
+                await this.records.addRecord(amount, foodType, notes);
+                this.refreshRecords();
+                this.form.reset();
+            } catch (error) {
+                console.error("Error in handleSubmit:", error);
+            }
+        }
+
+        setupCharts() {
+            // 周统计图表
+            const weeklyCtx = document.getElementById('weeklyChartCanvas').getContext('2d');
+            const weeklyData = this.records.getWeeklyStats();
+            this.weeklyChart = new Chart(weeklyCtx, {
+                type: 'line',
+                data: {
+                    labels: weeklyData.days,
+                    datasets: [{
+                        label: '每日总量 (ml)',
+                        data: weeklyData.amounts,
+                        borderColor: '#007bff',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+
+            // 类型分布图表
+            const typeCtx = document.getElementById('typeChartCanvas').getContext('2d');
+            const typeData = this.records.getTypeDistribution();
+            this.typeChart = new Chart(typeCtx, {
+                type: 'pie',
+                data: {
+                    labels: typeData.labels,
+                    datasets: [{
+                        data: typeData.data,
+                        backgroundColor: ['#007bff', '#28a745', '#ffc107']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+
+        updateStats() {
+            const stats = this.records.getTodayStats();
+            document.getElementById('todayTotal').textContent = stats.total;
+            document.getElementById('todayCount').textContent = stats.count;
+            document.getElementById('todayAvg').textContent = stats.avg;
+
+            // 更新图表
+            const weeklyData = this.records.getWeeklyStats();
+            this.weeklyChart.data.labels = weeklyData.days;
+            this.weeklyChart.data.datasets[0].data = weeklyData.amounts;
+            this.weeklyChart.update();
+
+            const typeData = this.records.getTypeDistribution();
+            this.typeChart.data.labels = typeData.labels;
+            this.typeChart.data.datasets[0].data = typeData.data;
+            this.typeChart.update();
+        }
+
+        refreshRecords() {
+            // 更新记录列表
+            const todayRecords = this.records.getTodayRecords();
+            this.recordsList.innerHTML = todayRecords.map(record => `
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">
+                                ${new Date(record.timestamp).toLocaleTimeString()}
+                            </span>
+                            <span class="fw-bold">${record.amount}ml</span>
+                        </div>
+                        <div>${record.foodType}</div>
+                        ${record.notes ? `<div class="text-muted small">${record.notes}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            // 更新统计
+            this.updateStats();
+        }
+    }
+</script>
+<body>
+    <div class="container">
+        <!-- 记录页面 -->
+        <div id="recordPage" class="page active">
+            <h2 class="mb-4">添加记录</h2>
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form id="feedingForm">
+                        <div class="mb-3">
+                            <label class="form-label">喂养量 (ml)</label>
+                            <input type="number" class="form-control" id="amount" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">食物类型</label>
+                            <select class="form-select" id="foodType" required>
+                                <option value="母乳">母乳</option>
+                                <option value="配方奶">配方奶</option>
+                                <option value="辅食">辅食</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <input type="text" class="form-control" id="notes">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">添加记录</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">今日记录</div>
+                <div class="card-body" id="recordsList">
+                    <!-- 记录将在这里动态显示 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计页面 -->
+        <div id="statsPage" class="page">
+            <h2 class="mb-4">数据统计</h2>
+            
+            <!-- 统计卡片 -->
+            <div class="row mb-4">
+                <div class="col-4">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="todayTotal">0</div>
+                        <div class="stats-label">今日总量(ml)</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="todayCount">0</div>
+                        <div class="stats-label">今日次数</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="todayAvg">0</div>
+                        <div class="stats-label">平均量(ml)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 图表 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <ul class="nav nav-pills card-header-pills">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#weeklyChart" data-bs-toggle="tab">每日统计</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#typeChart" data-bs-toggle="tab">类型分布</a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="weeklyChart">
+                            <div class="chart-container">
+                                <canvas id="weeklyChartCanvas"></canvas>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="typeChart">
+                            <div class="chart-container">
+                                <canvas id="typeChartCanvas"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部导航 -->
+    <nav class="bottom-nav">
+        <div class="container">
+            <ul class="nav nav-pills nav-fill py-2">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#" onclick="showPage('recordPage')">
+                        记录
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showPage('statsPage')">
+                        统计
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 页面切换功能
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            document.getElementById(pageId).classList.add('active');
+            
+            // 更新导航栏激活状态
+            document.querySelectorAll('.bottom-nav .nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 如果切换到统计页面，更新图表
+            if (pageId === 'statsPage') {
+                app.updateStats();
+            }
+        }
+
+        // FeedingRecords 类（保持原有代码）...
+
+        // FeedingUI 类（保持原有代码）...
+
+        // 初始化应用
+        const app = new FeedingUI(new FeedingRecords());
+    </script>
+</body>
+</html>
