@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>婴儿喂养记录</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            padding-bottom: 70px; /* 为底部导航留出空间 */
+            background-color: #f8f9fa;
+        }
+        .nav-pills .nav-link.active {
+            background-color: #007bff;
+        }
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .chart-container {
+            height: 300px;
+            margin-bottom: 20px;
+        }
+        .stats-card {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        .stats-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stats-label {
+            font-size: 14px;
+            color: #6c757d;
+        }
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 记录页面 -->
+        <div id="recordPage" class="page active">
+            <h2 class="mb-4">添加记录</h2>
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form id="feedingForm">
+                        <div class="mb-3">
+                            <label class="form-label">喂养量 (ml)</label>
+                            <input type="number" class="form-control" id="amount" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">食物类型</label>
+                            <select class="form-select" id="foodType" required>
+                                <option value="母乳">母乳</option>
+                                <option value="配方奶">配方奶</option>
+                                <option value="辅食">辅食</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <input type="text" class="form-control" id="notes">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">添加记录</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">今日记录</div>
+                <div class="card-body" id="recordsList">
+                    <!-- 记录将在这里动态显示 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计页面 -->
+        <div id="statsPage" class="page">
+            <h2 class="mb-4">数据统计</h2>
+            
+            <!-- 统计卡片 -->
+            <div class="row mb-4">
+                <div class="col-4">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="todayTotal">0</div>
+                        <div class="stats-label">今日总量(ml)</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="todayCount">0</div>
+                        <div class="stats-label">今日次数</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="todayAvg">0</div>
+                        <div class="stats-label">平均量(ml)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 图表 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <ul class="nav nav-pills card-header-pills">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#weeklyChart" data-bs-toggle="tab">每日统计</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#typeChart" data-bs-toggle="tab">类型分布</a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="weeklyChart">
+                            <div class="chart-container">
+                                <canvas id="weeklyChartCanvas"></canvas>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="typeChart">
+                            <div class="chart-container">
+                                <canvas id="typeChartCanvas"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部导航 -->
+    <nav class="bottom-nav">
+        <div class="container">
+            <ul class="nav nav-pills nav-fill py-2">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#" onclick="showPage('recordPage')">
+                        记录
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showPage('statsPage')">
+                        统计
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 页面切换功能
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            document.getElementById(pageId).classList.add('active');
+            
+            // 更新导航栏激活状态
+            document.querySelectorAll('.bottom-nav .nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 如果切换到统计页面，更新图表
+            if (pageId === 'statsPage') {
+                app.updateStats();
+            }
+        }
+
+        // FeedingRecords 类（保持原有代码）...
+
+        // FeedingUI 类（保持原有代码）...
+
+        // 初始化应用
+        const app = new FeedingUI(new FeedingRecords());
+    </script>
+</body>
+</html>
