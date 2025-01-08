@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>婴儿喂养记录</title>
-    <!-- 引入 Bootstrap -->
+    <title>宝宝护理记录</title>
+    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- 引入 Chart.js -->
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- 引入腾讯云 SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@cloudbase/js-sdk@1.7.2/dist/cloudbase.js"></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
 
     <style>
         body {
@@ -37,6 +39,37 @@
         .page.active {
             display: block;
         }
+        .record-card {
+            margin-bottom: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stats-card {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stats-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .tab-button {
+            padding: 10px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background: #f8f9fa;
+            width: 100%;
+        }
+        .tab-button.active {
+            background: #007bff;
+            color: white;
+        }
+        .record-type-tabs {
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 
@@ -44,15 +77,30 @@
     <!-- 记录页面 -->
     <div id="recordPage" class="page active">
         <h2 class="mb-4">添加记录</h2>
-        <form id="feedingForm" class="card mb-4">
+        
+        <!-- 记录类型选择 -->
+        <div class="record-type-tabs row mb-4">
+            <div class="col-4">
+                <button class="tab-button active" onclick="switchRecordType('feeding')">喂养</button>
+            </div>
+            <div class="col-4">
+                <button class="tab-button" onclick="switchRecordType('sleep')">睡眠</button>
+            </div>
+            <div class="col-4">
+                <button class="tab-button" onclick="switchRecordType('diaper')">排便</button>
+            </div>
+        </div>
+
+        <!-- 喂养记录表单 -->
+        <form id="feedingForm" class="record-form card mb-4">
             <div class="card-body">
                 <div class="mb-3">
                     <label class="form-label">喂养量 (ml)</label>
-                    <input type="number" class="form-control" id="amount" required>
+                    <input type="number" class="form-control" name="amount" required>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">食物类型</label>
-                    <select class="form-select" id="foodType" required>
+                    <select class="form-select" name="foodType" required>
                         <option value="母乳">母乳</option>
                         <option value="配方奶">配方奶</option>
                         <option value="辅食">辅食</option>
@@ -60,7 +108,60 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">备注</label>
-                    <input type="text" class="form-control" id="notes">
+                    <input type="text" class="form-control" name="notes">
+                </div>
+                <button type="submit" class="btn btn-primary w-100">添加记录</button>
+            </div>
+        </form>
+
+        <!-- 睡眠记录表单 -->
+        <form id="sleepForm" class="record-form card mb-4" style="display: none;">
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">开始时间</label>
+                    <input type="datetime-local" class="form-control" name="startTime" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">结束时间</label>
+                    <input type="datetime-local" class="form-control" name="endTime">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">睡眠质量</label>
+                    <select class="form-select" name="quality" required>
+                        <option value="好">好</option>
+                        <option value="一般">一般</option>
+                        <option value="差">差</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <input type="text" class="form-control" name="notes">
+                </div>
+                <button type="submit" class="btn btn-primary w-100">添加记录</button>
+            </div>
+        </form>
+
+        <!-- 排便记录表单 -->
+        <form id="diaperForm" class="record-form card mb-4" style="display: none;">
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">类型</label>
+                    <select class="form-select" name="type" required>
+                        <option value="尿尿">尿尿</option>
+                        <option value="便便">便便</option>
+                        <option value="都有">都有</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">状态</label>
+                    <select class="form-select" name="status" required>
+                        <option value="正常">正常</option>
+                        <option value="不正常">不正常</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <input type="text" class="form-control" name="notes">
                 </div>
                 <button type="submit" class="btn btn-primary w-100">添加记录</button>
             </div>
@@ -68,7 +169,11 @@
 
         <div class="card">
             <div class="card-header">今日记录</div>
-            <div class="card-body" id="recordsList"></div>
+            <div class="card-body" id="recordsList">
+                <div class="text-center text-muted p-4">
+                    <h5>今天还没有记录哦 👶</h5>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -77,43 +182,49 @@
         <h2 class="mb-4">数据统计</h2>
         <div class="row mb-4">
             <div class="col-4">
-                <div class="card text-center p-3">
-                    <div class="h3" id="todayTotal">0</div>
-                    <div class="text-muted">今日总量(ml)</div>
+                <div class="stats-card">
+                    <div class="stats-number" id="todayFeeding">0</div>
+                    <div class="text-muted">今日喂养(ml)</div>
                 </div>
             </div>
             <div class="col-4">
-                <div class="card text-center p-3">
-                    <div class="h3" id="todayCount">0</div>
-                    <div class="text-muted">今日次数</div>
+                <div class="stats-card">
+                    <div class="stats-number" id="todaySleep">0</div>
+                    <div class="text-muted">今日睡眠(h)</div>
                 </div>
             </div>
             <div class="col-4">
-                <div class="card text-center p-3">
-                    <div class="h3" id="todayAvg">0</div>
-                    <div class="text-muted">平均量(ml)</div>
+                <div class="stats-card">
+                    <div class="stats-number" id="todayDiaper">0</div>
+                    <div class="text-muted">今日换尿布</div>
                 </div>
             </div>
         </div>
 
-        <div class="card">
+        <div class="card mb-4">
             <div class="card-header">
                 <ul class="nav nav-tabs card-header-tabs">
                     <li class="nav-item">
-                        <a class="nav-link active" data-bs-toggle="tab" href="#weekChart">每日统计</a>
+                        <a class="nav-link active" data-bs-toggle="tab" href="#feedingChart">喂养统计</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" data-bs-toggle="tab" href="#typeChart">类型分布</a>
+                        <a class="nav-link" data-bs-toggle="tab" href="#sleepChart">睡眠统计</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#diaperChart">排便统计</a>
                     </li>
                 </ul>
             </div>
             <div class="card-body">
                 <div class="tab-content">
-                    <div class="tab-pane fade show active" id="weekChart">
-                        <canvas id="weeklyChart"></canvas>
+                    <div class="tab-pane fade show active" id="feedingChart">
+                        <canvas id="feedingWeeklyChart"></canvas>
                     </div>
-                    <div class="tab-pane fade" id="typeChart">
-                        <canvas id="typeDistChart"></canvas>
+                    <div class="tab-pane fade" id="sleepChart">
+                        <canvas id="sleepWeeklyChart"></canvas>
+                    </div>
+                    <div class="tab-pane fade" id="diaperChart">
+                        <canvas id="diaperWeeklyChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -133,148 +244,258 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // 初始化腾讯云
-        const app = cloudbase.init({
-            env: 'ceshi1-9g6m2y0td5a6600b'
-        });
 
+    <script>
+        // Firebase 配置和初始化
+        const firebaseConfig = {
+            apiKey: "AIzaSyCVRKjIlYe0Q5f5sXT-CnVoH8bs3IwD2fo",
+            authDomain: "baby-tracker-f8409.firebaseapp.com",
+            projectId: "baby-tracker-f8409",
+            storageBucket: "baby-tracker-f8409.firebasestorage.app",
+            messagingSenderId: "116145937226",
+            appId: "1:116145937226:web:bcf7c99fd0bed658e43fb3"
+        };
+        
+        // 初始化 Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        
         // 数据管理类
-        class FeedingRecords {
+        class BabyRecords {
             constructor() {
-                this.records = [];
-                this.db = app.database();
+                this.records = {
+                    feeding: [],
+                    sleep: [],
+                    diaper: []
+                };
                 this.loadRecords();
             }
-
+        
             async loadRecords() {
                 try {
-                    const { data } = await this.db.collection('feeding_records')
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+        
+                    // 加载一周内的记录
+                    const weekAgo = new Date(today);
+                    weekAgo.setDate(weekAgo.getDate() - 7);
+        
+                    // 加载喂养记录
+                    const feedingSnapshot = await db.collection('feeding_records')
+                        .where('timestamp', '>=', weekAgo)
                         .orderBy('timestamp', 'desc')
                         .get();
                     
-                    this.records = data;
+                    this.records.feeding = feedingSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+        
+                    // 加载睡眠记录
+                    const sleepSnapshot = await db.collection('sleep_records')
+                        .where('startTime', '>=', weekAgo)
+                        .orderBy('startTime', 'desc')
+                        .get();
+                    
+                    this.records.sleep = sleepSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+        
+                    // 加载排便记录
+                    const diaperSnapshot = await db.collection('diaper_records')
+                        .where('timestamp', '>=', weekAgo)
+                        .orderBy('timestamp', 'desc')
+                        .get();
+                    
+                    this.records.diaper = diaperSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+        
                     return this.records;
                 } catch (error) {
                     console.error("加载记录失败:", error);
+                    showToast('加载记录失败，请刷新重试', 'danger');
                     return [];
                 }
             }
-
-            async addRecord(amount, foodType, notes) {
+        
+            async addRecord(type, data) {
                 try {
-                    const record = {
-                        timestamp: new Date().toISOString(),
-                        amount: parseInt(amount),
-                        foodType,
-                        notes
-                    };
-                    
-                    await this.db.collection('feeding_records').add({
-                        data: record
-                    });
-                    
+                    let collection;
+                    let record;
+        
+                    switch(type) {
+                        case 'feeding':
+                            collection = 'feeding_records';
+                            record = {
+                                amount: parseInt(data.amount),
+                                foodType: data.foodType,
+                                notes: data.notes || '',
+                                timestamp: new Date()
+                            };
+                            break;
+                        case 'sleep':
+                            collection = 'sleep_records';
+                            record = {
+                                startTime: new Date(data.startTime),
+                                endTime: data.endTime ? new Date(data.endTime) : null,
+                                quality: data.quality,
+                                notes: data.notes || '',
+                                timestamp: new Date()
+                            };
+                            break;
+                        case 'diaper':
+                            collection = 'diaper_records';
+                            record = {
+                                type: data.type,
+                                status: data.status,
+                                notes: data.notes || '',
+                                timestamp: new Date()
+                            };
+                            break;
+                    }
+        
+                    await db.collection(collection).add(record);
                     await this.loadRecords();
-                    return record;
+                    showToast('记录添加成功！');
+                    return true;
                 } catch (error) {
                     console.error("添加记录失败:", error);
+                    showToast('添加失败，请重试', 'danger');
                     throw error;
                 }
             }
-
-            getTodayRecords() {
+        
+            getTodayRecords(type) {
                 const today = new Date().toDateString();
-                return this.records.filter(record => 
-                    new Date(record.timestamp).toDateString() === today
-                );
+                return this.records[type].filter(record => {
+                    const recordDate = new Date(record.timestamp?.toDate() || record.startTime?.toDate()).toDateString();
+                    return recordDate === today;
+                });
             }
-
+        
             getTodayStats() {
-                const todayRecords = this.getTodayRecords();
-                const total = todayRecords.reduce((sum, record) => sum + record.amount, 0);
-                const count = todayRecords.length;
-                const avg = count > 0 ? Math.round(total / count) : 0;
-                return { total, count, avg };
+                const todayFeeding = this.getTodayRecords('feeding');
+                const todaySleep = this.getTodayRecords('sleep');
+                const todayDiaper = this.getTodayRecords('diaper');
+        
+                return {
+                    feeding: {
+                        total: todayFeeding.reduce((sum, record) => sum + record.amount, 0),
+                        count: todayFeeding.length
+                    },
+                    sleep: {
+                        total: todaySleep.reduce((sum, record) => {
+                            if (record.endTime) {
+                                const duration = (record.endTime.toDate() - record.startTime.toDate()) / (1000 * 60 * 60);
+                                return sum + duration;
+                            }
+                            return sum;
+                        }, 0),
+                        count: todaySleep.length
+                    },
+                    diaper: {
+                        count: todayDiaper.length,
+                        types: todayDiaper.reduce((acc, record) => {
+                            acc[record.type] = (acc[record.type] || 0) + 1;
+                            return acc;
+                        }, {})
+                    }
+                };
             }
-
+        
             getWeeklyStats() {
                 const days = [];
-                const amounts = [];
+                const stats = {
+                    feeding: [],
+                    sleep: [],
+                    diaper: []
+                };
+        
                 for (let i = 6; i >= 0; i--) {
                     const date = new Date();
                     date.setDate(date.getDate() - i);
-                    const dayRecords = this.records.filter(record => 
-                        new Date(record.timestamp).toDateString() === date.toDateString()
-                    );
+                    date.setHours(0, 0, 0, 0);
+                    const nextDate = new Date(date);
+                    nextDate.setDate(date.getDate() + 1);
+        
                     days.push(date.toLocaleDateString('zh-CN', { weekday: 'short' }));
-                    amounts.push(dayRecords.reduce((sum, record) => sum + record.amount, 0));
+        
+                    // 喂养统计
+                    const dayFeeding = this.records.feeding.filter(record => {
+                        const recordDate = record.timestamp.toDate();
+                        return recordDate >= date && recordDate < nextDate;
+                    });
+                    stats.feeding.push(dayFeeding.reduce((sum, record) => sum + record.amount, 0));
+        
+                    // 睡眠统计
+                    const daySleep = this.records.sleep.filter(record => {
+                        const recordDate = record.startTime.toDate();
+                        return recordDate >= date && recordDate < nextDate;
+                    });
+                    stats.sleep.push(daySleep.reduce((sum, record) => {
+                        if (record.endTime) {
+                            const duration = (record.endTime.toDate() - record.startTime.toDate()) / (1000 * 60 * 60);
+                            return sum + duration;
+                        }
+                        return sum;
+                    }, 0));
+        
+                    // 排便统计
+                    const dayDiaper = this.records.diaper.filter(record => {
+                        const recordDate = record.timestamp.toDate();
+                        return recordDate >= date && recordDate < nextDate;
+                    });
+                    stats.diaper.push(dayDiaper.length);
                 }
-                return { days, amounts };
-            }
-
-            getTypeDistribution() {
-                const todayRecords = this.getTodayRecords();
-                const types = {};
-                todayRecords.forEach(record => {
-                    types[record.foodType] = (types[record.foodType] || 0) + record.amount;
-                });
-                return {
-                    labels: Object.keys(types),
-                    data: Object.values(types)
-                };
+        
+                return { days, stats };
             }
         }
-
+        
         // UI 管理类
-        class FeedingUI {
+        class BabyTrackerUI {
             constructor(records) {
                 this.records = records;
-                this.form = document.getElementById('feedingForm');
-                this.recordsList = document.getElementById('recordsList');
+                this.currentType = 'feeding';
                 this.setupCharts();
                 this.setupEventListeners();
-                this.refreshRecords();
+                this.refreshUI();
             }
-
+        
             setupEventListeners() {
-                this.form.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const submitButton = this.form.querySelector('button[type="submit"]');
-                    
-                    try {
-                        submitButton.disabled = true;
-                        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 添加中...';
-
-                        const amount = document.getElementById('amount').value;
-                        const foodType = document.getElementById('foodType').value;
-                        const notes = document.getElementById('notes').value;
-
-                        await this.records.addRecord(amount, foodType, notes);
-                        this.showToast('记录添加成功！', 'success');
-                        this.form.reset();
-                        this.refreshRecords();
+                // 设置表单提交事件
+                document.querySelectorAll('.record-form').forEach(form => {
+                    form.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        const formType = form.id.replace('Form', '');
+                        const submitButton = form.querySelector('button[type="submit"]');
                         
-                    } catch (error) {
-                        this.showToast('添加失败，请重试', 'danger');
-                    } finally {
-                        submitButton.disabled = false;
-                        submitButton.textContent = '添加记录';
-                    }
+                        try {
+                            submitButton.disabled = true;
+                            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 添加中...';
+        
+                            const formData = Object.fromEntries(new FormData(form));
+                            await this.records.addRecord(formType, formData);
+                            form.reset();
+                            this.refreshUI();
+                            
+                        } catch (error) {
+                            console.error(error);
+                        } finally {
+                            submitButton.disabled = false;
+                            submitButton.textContent = '添加记录';
+                        }
+                    });
                 });
             }
-
-            showToast(message, type = 'success') {
-                const toast = document.createElement('div');
-                toast.className = `alert alert-${type} position-fixed top-0 start-50 translate-middle-x mt-3`;
-                toast.style.zIndex = '1000';
-                toast.innerHTML = message;
-                document.body.appendChild(toast);
-                setTimeout(() => toast.remove(), 3000);
-            }
-
+        
             setupCharts() {
-                const weekCtx = document.getElementById('weeklyChart').getContext('2d');
-                this.weeklyChart = new Chart(weekCtx, {
+                // 喂养图表
+                const feedingCtx = document.getElementById('feedingWeeklyChart').getContext('2d');
+                this.feedingChart = new Chart(feedingCtx, {
                     type: 'line',
                     data: {
                         labels: [],
@@ -290,15 +511,36 @@
                         maintainAspectRatio: false
                     }
                 });
-
-                const typeCtx = document.getElementById('typeDistChart').getContext('2d');
-                this.typeChart = new Chart(typeCtx, {
-                    type: 'pie',
+        
+                // 睡眠图表
+                const sleepCtx = document.getElementById('sleepWeeklyChart').getContext('2d');
+                this.sleepChart = new Chart(sleepCtx, {
+                    type: 'line',
                     data: {
                         labels: [],
                         datasets: [{
+                            label: '睡眠时长 (小时)',
                             data: [],
-                            backgroundColor: ['#007bff', '#28a745', '#ffc107']
+                            borderColor: '#28a745',
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+        
+                // 排便图表
+                const diaperCtx = document.getElementById('diaperWeeklyChart').getContext('2d');
+                this.diaperChart = new Chart(diaperCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: '换尿布次数',
+                            data: [],
+                            backgroundColor: '#ffc107'
                         }]
                     },
                     options: {
@@ -307,62 +549,157 @@
                     }
                 });
             }
-
-            refreshRecords() {
-                const todayRecords = this.records.getTodayRecords();
-                this.recordsList.innerHTML = todayRecords.map(record => `
-                    <div class="card mb-2">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between">
-                                <span class="text-muted">
-                                    ${new Date(record.timestamp).toLocaleTimeString()}
-                                </span>
-                                <span class="fw-bold">${record.amount}ml</span>
-                            </div>
-                            <div>${record.foodType}</div>
-                            ${record.notes ? `<div class="text-muted small">${record.notes}</div>` : ''}
+        
+            refreshUI() {
+                this.updateRecordsList();
+                this.updateStats();
+                this.updateCharts();
+            }
+        
+            updateRecordsList() {
+                const todayRecords = this.records.getTodayRecords(this.currentType);
+                const recordsList = document.getElementById('recordsList');
+        
+                if (todayRecords.length === 0) {
+                    recordsList.innerHTML = `
+                        <div class="text-center text-muted p-4">
+                            <h5>今天还没有${this.getTypeLabel(this.currentType)}记录哦 👶</h5>
                         </div>
-                    </div>
-                `).join('');
-
+                    `;
+                    return;
+                }
+        
+                recordsList.innerHTML = todayRecords.map(record => {
+                    let content = '';
+                    switch(this.currentType) {
+                        case 'feeding':
+                            content = `
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-muted">
+                                        ${new Date(record.timestamp.toDate()).toLocaleTimeString()}
+                                    </span>
+                                    <span class="fw-bold">${record.amount}ml - ${record.foodType}</span>
+                                </div>
+                            `;
+                            break;
+                        case 'sleep':
+                            const duration = record.endTime ? 
+                                ((record.endTime.toDate() - record.startTime.toDate()) / (1000 * 60 * 60)).toFixed(1) + '小时' :
+                                '睡眠中...';
+                            content = `
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-muted">
+                                        ${new Date(record.startTime.toDate()).toLocaleTimeString()}
+                                    </span>
+                                    <span class="fw-bold">${duration} - ${record.quality}</span>
+                                </div>
+                            `;
+                            break;
+                        case 'diaper':
+                            content = `
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-muted">
+                                        ${new Date(record.timestamp.toDate()).toLocaleTimeString()}
+                                    </span>
+                                    <span class="fw-bold">${record.type} - ${record.status}</span>
+                                </div>
+                            `;
+                            break;
+                    }
+        
+                    return `
+                        <div class="record-card card">
+                            <div class="card-body">
+                                ${content}
+                                ${record.notes ? `<div class="text-muted small">${record.notes}</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        
+            updateStats() {
                 const stats = this.records.getTodayStats();
-                document.getElementById('todayTotal').textContent = stats.total;
-                document.getElementById('todayCount').textContent = stats.count;
-                document.getElementById('todayAvg').textContent = stats.avg;
-
-                const weeklyData = this.records.getWeeklyStats();
-                this.weeklyChart.data.labels = weeklyData.days;
-                this.weeklyChart.data.datasets[0].data = weeklyData.amounts;
-                this.weeklyChart.update();
-
-                const typeData = this.records.getTypeDistribution();
-                this.typeChart.data.labels = typeData.labels;
-                this.typeChart.data.datasets[0].data = typeData.data;
-                this.typeChart.update();
+                document.getElementById('todayFeeding').textContent = stats.feeding.total;
+                document.getElementById('todaySleep').textContent = stats.sleep.total.toFixed(1);
+                document.getElementById('todayDiaper').textContent = stats.diaper.count;
+            }
+        
+            updateCharts() {
+                const { days, stats } = this.records.getWeeklyStats();
+        
+                // 更新喂养图表
+                this.feedingChart.data.labels = days;
+                this.feedingChart.data.datasets[0].data = stats.feeding;
+                this.feedingChart.update();
+        
+                // 更新睡眠图表
+                this.sleepChart.data.labels = days;
+                this.sleepChart.data.datasets[0].data = stats.sleep;
+                this.sleepChart.update();
+        
+                // 更新排便图表
+                this.diaperChart.data.labels = days;
+                this.diaperChart.data.datasets[0].data = stats.diaper;
+                this.diaperChart.update();
+            }
+        
+            getTypeLabel(type) {
+                const labels = {
+                    feeding: '喂养',
+                    sleep: '睡眠',
+                    diaper: '排便'
+                };
+                return labels[type] || '';
             }
         }
-
-        // 页面切换函数
+        
+        // 工具函数
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type} position-fixed top-0 start-50 translate-middle-x mt-3`;
+            toast.style.zIndex = '1000';
+            toast.innerHTML = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+        
         function showPage(pageId) {
             document.querySelectorAll('.page').forEach(page => {
                 page.classList.remove('active');
             });
             document.getElementById(pageId).classList.add('active');
         }
-
+        
+        function switchRecordType(type) {
+            // 更新按钮状态
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            document.querySelector(`button[onclick="switchRecordType('${type}')"]`).classList.add('active');
+        
+            // 显示对应的表单
+            document.querySelectorAll('.record-form').forEach(form => {
+                form.style.display = 'none';
+            });
+            document.getElementById(`${type}Form`).style.display = 'block';
+        
+            // 更新当前类型
+            window.app.currentType = type;
+            window.app.updateRecordsList();
+        }
+        
         // 初始化应用
-        async function initApp() {
+        window.onload = async function() {
             try {
-                await app.auth().signInAnonymously();
-                const feedingRecords = new FeedingRecords();
-                window.app = new FeedingUI(feedingRecords);
+                await firebase.auth().signInAnonymously();
+                const babyRecords = new BabyRecords();
+                window.app = new BabyTrackerUI(babyRecords);
             } catch (error) {
                 console.error('初始化失败:', error);
+                showToast('初始化失败，请刷新重试', 'danger');
             }
-        }
-
-        // 页面加载完成后初始化
-        window.onload = initApp;
-    </script>
-</body>
-</html>
+        };
+        </script>
+        </body>
+        </html>
