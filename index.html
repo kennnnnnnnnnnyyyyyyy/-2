@@ -260,78 +260,88 @@
     class FeedingUI {
         constructor(records) {
             this.records = records;
-            this.form = document.getElementById('feedingForm');
-            this.recordsList = document.getElementById('recordsList');
+            
+            // 获取所有需要的 DOM 元素
+            this.sleepForm = document.getElementById('sleepForm');
+            this.diaperForm = document.getElementById('diaperForm');
+            this.sleepFormCollapse = document.getElementById('sleepFormCollapse');
+            this.diaperFormCollapse = document.getElementById('diaperFormCollapse');
             this.sleepRecordsList = document.getElementById('sleepRecordsList');
             this.diaperRecordsList = document.getElementById('diaperRecordsList');
-            this.setupCharts();
-            this.setupEventListeners();
-            this.refreshRecords();
             
             // 初始化页面元素
             this.pages = {
                 recordPage: document.getElementById('recordPage'),
-                statsPage: document.getElementById('statsPage'),
-                sleepPage: document.getElementById('sleepPage'),
-                diaperPage: document.getElementById('diaperPage')
+                statsPage: document.getElementById('statsPage')
             };
+            
+            this.setupEventListeners();
+            this.setupNavigation();
+            this.refreshRecords();
         }
 
         setupEventListeners() {
-            this.form.addEventListener('submit', (e) => {
-                e.preventDefault();
-                this.handleSubmit();
-            });
+            // 确保元素存在后再添加事件监听
+            if (this.sleepFormCollapse) {
+                this.sleepFormCollapse.addEventListener('show.bs.collapse', () => {
+                    const now = new Date();
+                    const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                        .toISOString()
+                        .slice(0, 16);
+                    
+                    document.getElementById('sleepStart').value = localDateTime;
+                    document.getElementById('sleepEnd').value = localDateTime;
+                });
+            }
 
-            // 睡眠表单展开时设置默认时间
-            document.getElementById('sleepFormCollapse').addEventListener('show.bs.collapse', () => {
-                const now = new Date();
-                const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-                    .toISOString()
-                    .slice(0, 16);
-                
-                document.getElementById('sleepStart').value = localDateTime;
-                document.getElementById('sleepEnd').value = localDateTime;
-            });
+            if (this.sleepForm) {
+                this.sleepForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const startTime = document.getElementById('sleepStart').value;
+                    const endTime = document.getElementById('sleepEnd').value;
+                    const notes = document.getElementById('sleepNotes').value;
 
-            this.sleepForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const startTime = document.getElementById('sleepStart').value;
-                const endTime = document.getElementById('sleepEnd').value;
-                const notes = document.getElementById('sleepNotes').value;
+                    if (new Date(endTime) <= new Date(startTime)) {
+                        alert('结束时间必须晚于开始时间');
+                        return;
+                    }
 
-                if (new Date(endTime) <= new Date(startTime)) {
-                    alert('结束时间必须晚于开始时间');
-                    return;
-                }
+                    try {
+                        await this.records.addSleepRecord(startTime, endTime, notes);
+                        this.sleepForm.reset();
+                        // 关闭折叠面板
+                        if (this.sleepFormCollapse) {
+                            bootstrap.Collapse.getInstance(this.sleepFormCollapse).hide();
+                        }
+                        this.refreshRecords();
+                        alert('睡眠记录已添加');
+                    } catch (error) {
+                        console.error("Error in sleep submit:", error);
+                    }
+                });
+            }
 
-                try {
-                    await this.records.addSleepRecord(startTime, endTime, notes);
-                    this.sleepForm.reset();
-                    // 关闭折叠面板
-                    bootstrap.Collapse.getInstance(document.getElementById('sleepFormCollapse')).hide();
-                    this.refreshRecords();
-                    alert('睡眠记录已添加');
-                } catch (error) {
-                    console.error("Error in sleep submit:", error);
-                }
-            });
+            if (this.diaperForm) {
+                this.diaperForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const notes = document.getElementById('diaperNotes').value;
 
-            this.diaperForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const notes = document.getElementById('diaperNotes').value;
+                    try {
+                        await this.records.addDiaperRecord('poop', notes);
+                        this.diaperForm.reset();
+                        // 关闭折叠面板
+                        if (this.diaperFormCollapse) {
+                            bootstrap.Collapse.getInstance(this.diaperFormCollapse).hide();
+                        }
+                        this.refreshRecords();
+                        alert('排便记录已添加');
+                    } catch (error) {
+                        console.error("Error in diaper submit:", error);
+                    }
+                });
+            }
 
-                try {
-                    await this.records.addDiaperRecord('poop', notes);
-                    this.diaperForm.reset();
-                    // 关闭折叠面板
-                    bootstrap.Collapse.getInstance(document.getElementById('diaperFormCollapse')).hide();
-                    this.refreshRecords();
-                    alert('排便记录已添加');
-                } catch (error) {
-                    console.error("Error in diaper submit:", error);
-                }
-            });
+            // ... rest of the event listeners ...
         }
 
         async handleSubmit() {
