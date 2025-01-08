@@ -233,6 +233,27 @@
         save() {
             localStorage.setItem('feedingRecords', JSON.stringify(this.records));
         }
+
+        async addDiaperRecord(type, notes) {
+            try {
+                const record = {
+                    type: 'diaper',
+                    diaperType: type,
+                    notes,
+                    timestamp: new Date().toISOString()
+                };
+                
+                // 确保正确写入数据库
+                const docRef = await db.collection('diaper_records').add(record);
+                record.id = docRef.id;
+                this.diaperRecords.unshift(record); // 添加到本地记录
+                return record;
+            } catch (error) {
+                console.error("Error adding diaper record:", error);
+                alert("添加排便记录失败，请重试");
+                throw error;
+            }
+        }
     }
 
     // 界面类
@@ -260,6 +281,56 @@
             this.form.addEventListener('submit', (e) => {
                 e.preventDefault();
                 this.handleSubmit();
+            });
+
+            // 睡眠表单展开时设置默认时间
+            document.getElementById('sleepFormCollapse').addEventListener('show.bs.collapse', () => {
+                const now = new Date();
+                const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                    .toISOString()
+                    .slice(0, 16);
+                
+                document.getElementById('sleepStart').value = localDateTime;
+                document.getElementById('sleepEnd').value = localDateTime;
+            });
+
+            this.sleepForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const startTime = document.getElementById('sleepStart').value;
+                const endTime = document.getElementById('sleepEnd').value;
+                const notes = document.getElementById('sleepNotes').value;
+
+                if (new Date(endTime) <= new Date(startTime)) {
+                    alert('结束时间必须晚于开始时间');
+                    return;
+                }
+
+                try {
+                    await this.records.addSleepRecord(startTime, endTime, notes);
+                    this.sleepForm.reset();
+                    // 关闭折叠面板
+                    bootstrap.Collapse.getInstance(document.getElementById('sleepFormCollapse')).hide();
+                    this.refreshRecords();
+                    alert('睡眠记录已添加');
+                } catch (error) {
+                    console.error("Error in sleep submit:", error);
+                }
+            });
+
+            this.diaperForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const notes = document.getElementById('diaperNotes').value;
+
+                try {
+                    await this.records.addDiaperRecord('poop', notes);
+                    this.diaperForm.reset();
+                    // 关闭折叠面板
+                    bootstrap.Collapse.getInstance(document.getElementById('diaperFormCollapse')).hide();
+                    this.refreshRecords();
+                    alert('排便记录已添加');
+                } catch (error) {
+                    console.error("Error in diaper submit:", error);
+                }
             });
         }
 
@@ -735,34 +806,16 @@
     </div>
 
     <!-- 底部导航 -->
-    <nav class="bottom-nav">
-        <div class="container">
-            <ul class="nav nav-pills nav-fill py-2">
-                <li class="nav-item">
-                    <a class="nav-link active" href="#" onclick="showPage('recordPage')">
-                        记录
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#" onclick="showPage('statsPage')">
-                        统计
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <button class="nav-btn" data-page="sleepPage">
-                        <i class="fas fa-bed"></i>
-                        <span>睡眠</span>
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button class="nav-btn" data-page="diaperPage">
-                        <i class="fas fa-baby"></i>
-                        <span>排便</span>
-                    </button>
-                </li>
-            </ul>
-        </div>
-    </nav>
+    <div class="bottom-nav">
+        <button class="nav-btn" data-page="recordPage">
+            <i class="fas fa-plus"></i>
+            <span>记录</span>
+        </button>
+        <button class="nav-btn" data-page="statsPage">
+            <i class="fas fa-chart-bar"></i>
+            <span>统计</span>
+        </button>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
