@@ -246,6 +246,14 @@
             this.setupCharts();
             this.setupEventListeners();
             this.refreshRecords();
+            
+            // 初始化页面元素
+            this.pages = {
+                recordPage: document.getElementById('recordPage'),
+                statsPage: document.getElementById('statsPage'),
+                sleepPage: document.getElementById('sleepPage'),
+                diaperPage: document.getElementById('diaperPage')
+            };
         }
 
         setupEventListeners() {
@@ -520,6 +528,60 @@
                 </div>
             </div>
         </div>
+
+        <!-- 睡眠页面 -->
+        <div id="sleepPage" class="page">
+            <div class="card mb-4">
+                <div class="card-header">记录睡眠</div>
+                <div class="card-body">
+                    <form id="sleepForm">
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label class="form-label">开始时间</label>
+                                <input type="datetime-local" class="form-control" id="sleepStart" required>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <label class="form-label">结束时间</label>
+                                <input type="datetime-local" class="form-control" id="sleepEnd" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <input type="text" class="form-control" id="sleepNotes">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">添加睡眠记录</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 今日睡眠记录列表 -->
+            <div class="card">
+                <div class="card-header">今日睡眠记录</div>
+                <div class="card-body" id="sleepRecordsList"></div>
+            </div>
+        </div>
+
+        <!-- 排便页面 -->
+        <div id="diaperPage" class="page">
+            <div class="card mb-4">
+                <div class="card-header">记录排便</div>
+                <div class="card-body">
+                    <form id="diaperForm">
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <input type="text" class="form-control" id="diaperNotes">
+                        </div>
+                        <button type="submit" class="btn btn-warning w-100">记录大便</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 今日排便记录列表 -->
+            <div class="card">
+                <div class="card-header">今日排便记录</div>
+                <div class="card-body" id="diaperRecordsList"></div>
+            </div>
+        </div>
     </div>
 
     <!-- 底部导航 -->
@@ -535,6 +597,18 @@
                     <a class="nav-link" href="#" onclick="showPage('statsPage')">
                         统计
                     </a>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-btn" data-page="sleepPage">
+                        <i class="fas fa-bed"></i>
+                        <span>睡眠</span>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-btn" data-page="diaperPage">
+                        <i class="fas fa-baby"></i>
+                        <span>排便</span>
+                    </button>
                 </li>
             </ul>
         </div>
