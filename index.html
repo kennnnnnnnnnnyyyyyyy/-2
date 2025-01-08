@@ -20,7 +20,9 @@
             left: 0;
             right: 0;
             background: white;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            padding: 8px;
+            border-top: 1px solid #dee2e6;
             z-index: 1000;
         }
         .chart-container {
@@ -55,6 +57,28 @@
         .card-header {
             background-color: #f8f9fa;
             font-weight: bold;
+        }
+        .nav-btn {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            background: none;
+            border: none;
+            color: #6c757d;
+            font-size: 12px;
+        }
+        .nav-btn i {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+        .nav-btn.active {
+            color: #0d6efd;
+        }
+        .page {
+            padding-bottom: 80px;
         }
     </style>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -93,13 +117,43 @@
             ]);
         }
 
+        async addSleepRecord(startTime, endTime, notes) {
+            try {
+                const record = {
+                    type: 'sleep',
+                    startTime: startTime,
+                    endTime: endTime,
+                    duration: (new Date(endTime) - new Date(startTime)) / (1000 * 60), // 转换为分钟
+                    notes: notes,
+                    timestamp: new Date().toISOString()
+                };
+                
+                // 写入数据库
+                const docRef = await db.collection('sleep_records').add(record);
+                record.id = docRef.id;
+                
+                // 添加到本地记录
+                this.sleepRecords.unshift(record);
+                
+                return record;
+            } catch (error) {
+                console.error("Error adding sleep record:", error);
+                alert("添加睡眠记录失败，请重试");
+                throw error;
+            }
+        }
+
         async loadSleepRecords() {
             try {
-                const snapshot = await db.collection('sleep_records').orderBy('timestamp', 'desc').get();
+                const snapshot = await db.collection('sleep_records')
+                    .orderBy('timestamp', 'desc')
+                    .get();
+                
                 this.sleepRecords = snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 }));
+                
                 return this.sleepRecords;
             } catch (error) {
                 console.error("Error loading sleep records:", error);
@@ -107,18 +161,19 @@
             }
         }
 
-        async loadDiaperRecords() {
-            try {
-                const snapshot = await db.collection('diaper_records').orderBy('timestamp', 'desc').get();
-                this.diaperRecords = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                return this.diaperRecords;
-            } catch (error) {
-                console.error("Error loading diaper records:", error);
-                return [];
-            }
+        getTodaySleepStats() {
+            const today = new Date().toDateString();
+            const todaySleep = this.sleepRecords.filter(record => 
+                new Date(record.timestamp).toDateString() === today
+            );
+            
+            const totalMinutes = todaySleep.reduce((sum, record) => sum + record.duration, 0);
+            
+            return {
+                totalHours: Math.round(totalMinutes / 60 * 10) / 10,
+                count: todaySleep.length,
+                records: todaySleep
+            };
         }
 
         async loadRecords() {
@@ -202,36 +257,18 @@
             return { total, count, avg };
         }
 
-        getTodaySleepStats() {
-            const today = new Date().toDateString();
-            const todaySleep = this.sleepRecords.filter(record => 
-                new Date(record.timestamp).toDateString() === today
-            );
-            
-            const totalMinutes = todaySleep.reduce((sum, record) => sum + record.duration, 0);
-            const count = todaySleep.length;
-            
-            return {
-                totalHours: Math.round(totalMinutes / 60 * 10) / 10,
-                count,
-                records: todaySleep
-            };
-        }
-
-        getTodayDiaperStats() {
-            const today = new Date().toDateString();
-            const todayDiapers = this.diaperRecords.filter(record => 
-                new Date(record.timestamp).toDateString() === today
-            );
-            
-            return {
-                count: todayDiapers.length,
-                records: todayDiapers
-            };
-        }
-
-        save() {
-            localStorage.setItem('feedingRecords', JSON.stringify(this.records));
+        async loadDiaperRecords() {
+            try {
+                const snapshot = await db.collection('diaper_records').orderBy('timestamp', 'desc').get();
+                this.diaperRecords = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                return this.diaperRecords;
+            } catch (error) {
+                console.error("Error loading diaper records:", error);
+                return [];
+            }
         }
 
         async addDiaperRecord(type, notes) {
@@ -253,6 +290,22 @@
                 alert("添加排便记录失败，请重试");
                 throw error;
             }
+        }
+
+        getTodayDiaperStats() {
+            const today = new Date().toDateString();
+            const todayDiapers = this.diaperRecords.filter(record => 
+                new Date(record.timestamp).toDateString() === today
+            );
+            
+            return {
+                count: todayDiapers.length,
+                records: todayDiapers
+            };
+        }
+
+        save() {
+            localStorage.setItem('feedingRecords', JSON.stringify(this.records));
         }
     }
 
@@ -839,7 +892,7 @@
 
     <!-- 底部导航 -->
     <div class="bottom-nav">
-        <button class="nav-btn" data-page="recordPage">
+        <button class="nav-btn active" data-page="recordPage">
             <i class="fas fa-plus"></i>
             <span>记录</span>
         </button>
