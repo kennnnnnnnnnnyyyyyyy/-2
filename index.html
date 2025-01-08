@@ -1,190 +1,572 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>婴儿记录</title>
-    <link rel="stylesheet" href="styles.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>婴儿喂养记录</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.1.2/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.1.2/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.1.2/firebase-auth.js"></script>
+    <style>
+        body {
+            padding-bottom: 70px; /* 为底部导航留出空间 */
+            background-color: #f8f9fa;
+        }
+        .nav-pills .nav-link.active {
+            background-color: #007bff;
+        }
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .chart-container {
+            height: 300px;
+            margin-bottom: 20px;
+        }
+        .stats-card {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        .stats-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stats-label {
+            font-size: 14px;
+            color: #6c757d;
+        }
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+        .stats-sub {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        .card-header {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
-<body>
-    <h1>婴儿喂养、睡眠、拉屎记录</h1>
-    <div>
-        <button id="login">登录</button>
-        <button id="logout" style="display: none;">退出</button>
-    </div>
+<!-- 在 </body> 前添加以下 JavaScript 代码 -->
+<script>
+    // Firebase 配置
+    const firebaseConfig = {
+        apiKey: "AIzaSyCVRKjIlYe0Q5f5sXT-CnVoH8bs3IwD2fo",
+        authDomain: "baby-tracker-f8409.firebaseapp.com",
+        projectId: "baby-tracker-f8409",
+        storageBucket: "baby-tracker-f8409.firebasestorage.app",
+        messagingSenderId: "116145937226",
+        appId: "1:116145937226:web:bcf7c99fd0bed658e43fb3"
+    };
 
-    <div id="records">
-        <h2>记录输入</h2>
-        <form id="feed-form">
-            <label for="feed-time">喂养时间:</label>
-            <input type="datetime-local" id="feed-time">
-            <label for="feed-type">喂养类型:</label>
-            <select id="feed-type">
-                <option value="breast">母乳</option>
-                <option value="formula">奶粉</option>
-            </select>
-            <button type="submit">添加喂养记录</button>
-        </form>
+    // 初始化 Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
 
-        <form id="sleep-form">
-            <label for="sleep-start">睡眠开始:</label>
-            <input type="datetime-local" id="sleep-start">
-            <label for="sleep-end">睡眠结束:</label>
-            <input type="datetime-local" id="sleep-end">
-            <button type="submit">添加睡眠记录</button>
-        </form>
+    // 数据存储类
+    class FeedingRecords {
+        constructor() {
+            this.records = [];
+            this.sleepRecords = [];
+            this.diaperRecords = [];
+            this.loadAllRecords();
+        }
 
-        <form id="diaper-form">
-            <label for="diaper-time">拉屎时间:</label>
-            <input type="datetime-local" id="diaper-time">
-            <label for="diaper-type">类型:</label>
-            <select id="diaper-type">
-                <option value="pee">尿尿</option>
-                <option value="poo">拉屎</option>
-            </select>
-            <button type="submit">添加拉屎记录</button>
-        </form>
-    </div>
+        async loadAllRecords() {
+            await Promise.all([
+                this.loadRecords(),
+                this.loadSleepRecords(),
+                this.loadDiaperRecords()
+            ]);
+        }
 
-    <div id="statistics">
-        <h2>统计图表</h2>
-        <canvas id="chart" width="400" height="200"></canvas>
-    </div>
+        async loadSleepRecords() {
+            try {
+                const snapshot = await db.collection('sleep_records').orderBy('timestamp', 'desc').get();
+                this.sleepRecords = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                return this.sleepRecords;
+            } catch (error) {
+                console.error("Error loading sleep records:", error);
+                return [];
+            }
+        }
 
-    <script>
-        // Firebase 初始化
-        const firebaseConfig = {
-            apiKey: "AIzaSyCVRKjIlYe0Q5f5sXT-CnVoH8bs3IwD2fo",
-            authDomain: "baby-tracker-f8409.firebaseapp.com",
-            projectId: "baby-tracker-f8409",
-            storageBucket: "baby-tracker-f8409.firebasestorage.app",
-            messagingSenderId: "116145937226",
-            appId: "1:116145937226:web:bcf7c99fd0bed658e43fb3"
-        };
+        async loadDiaperRecords() {
+            try {
+                const snapshot = await db.collection('diaper_records').orderBy('timestamp', 'desc').get();
+                this.diaperRecords = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                return this.diaperRecords;
+            } catch (error) {
+                console.error("Error loading diaper records:", error);
+                return [];
+            }
+        }
 
-        const app = firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
+        async loadRecords() {
+            try {
+                const snapshot = await db.collection('feeding_records').orderBy('timestamp', 'desc').get();
+                this.records = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                return this.records;
+            } catch (error) {
+                console.error("Error loading records:", error);
+                return [];
+            }
+        }
 
-        // 登录和注销功能
-        document.getElementById('login').addEventListener('click', () => {
-            const provider = new firebase.auth.GoogleAuthProvider();
-            auth.signInWithPopup(provider).then(result => {
-                console.log("用户登录成功", result.user);
-                document.getElementById('logout').style.display = 'inline';
-                document.getElementById('login').style.display = 'none';
+        async addRecord(amount, foodType, notes) {
+            try {
+                const record = {
+                    timestamp: new Date().toISOString(),
+                    amount: parseInt(amount),
+                    foodType,
+                    notes
+                };
+                
+                await db.collection('feeding_records').add(record);
+                await this.loadRecords();
+                return record;
+            } catch (error) {
+                console.error("Error adding record:", error);
+                alert("添加记录失败，请重试");
+                throw error;
+            }
+        }
+
+        getTodayRecords() {
+            const today = new Date().toDateString();
+            return this.records.filter(record => 
+                new Date(record.timestamp).toDateString() === today
+            ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        }
+
+        getWeeklyStats() {
+            const days = [];
+            const amounts = [];
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const dayRecords = this.records.filter(record => 
+                    new Date(record.timestamp).toDateString() === date.toDateString()
+                );
+                days.push(date.toLocaleDateString('zh-CN', { weekday: 'short' }));
+                amounts.push(dayRecords.reduce((sum, record) => sum + record.amount, 0));
+            }
+            return { days, amounts };
+        }
+
+        getTypeDistribution() {
+            const today = new Date().toDateString();
+            const todayRecords = this.records.filter(record => 
+                new Date(record.timestamp).toDateString() === today
+            );
+            
+            const typeCounts = {};
+            todayRecords.forEach(record => {
+                typeCounts[record.foodType] = (typeCounts[record.foodType] || 0) + record.amount;
             });
-        });
+            
+            return {
+                labels: Object.keys(typeCounts),
+                data: Object.values(typeCounts)
+            };
+        }
 
-        document.getElementById('logout').addEventListener('click', () => {
-            auth.signOut().then(() => {
-                console.log("用户已登出");
-                document.getElementById('logout').style.display = 'none';
-                document.getElementById('login').style.display = 'inline';
-            });
-        });
+        getTodayStats() {
+            const todayRecords = this.getTodayRecords();
+            const total = todayRecords.reduce((sum, record) => sum + record.amount, 0);
+            const count = todayRecords.length;
+            const avg = count > 0 ? Math.round(total / count) : 0;
+            
+            return { total, count, avg };
+        }
 
-        // 添加喂养记录
-        document.getElementById('feed-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const feedTime = document.getElementById('feed-time').value;
-            const feedType = document.getElementById('feed-type').value;
-            db.collection('feedingRecords').add({
-                userId: auth.currentUser.uid,
-                time: feedTime,
-                type: feedType
-            }).then(() => {
-                console.log('喂养记录添加成功');
-                fetchRecords();
-            });
-        });
+        getTodaySleepStats() {
+            const today = new Date().toDateString();
+            const todaySleep = this.sleepRecords.filter(record => 
+                new Date(record.timestamp).toDateString() === today
+            );
+            
+            const totalMinutes = todaySleep.reduce((sum, record) => sum + record.duration, 0);
+            const count = todaySleep.length;
+            
+            return {
+                totalHours: Math.round(totalMinutes / 60 * 10) / 10,
+                count,
+                records: todaySleep
+            };
+        }
 
-        // 添加睡眠记录
-        document.getElementById('sleep-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const sleepStart = document.getElementById('sleep-start').value;
-            const sleepEnd = document.getElementById('sleep-end').value;
-            db.collection('sleepRecords').add({
-                userId: auth.currentUser.uid,
-                start: sleepStart,
-                end: sleepEnd
-            }).then(() => {
-                console.log('睡眠记录添加成功');
-                fetchRecords();
-            });
-        });
+        getTodayDiaperStats() {
+            const today = new Date().toDateString();
+            const todayDiapers = this.diaperRecords.filter(record => 
+                new Date(record.timestamp).toDateString() === today
+            );
+            
+            return {
+                count: todayDiapers.length,
+                records: todayDiapers
+            };
+        }
 
-        // 添加拉屎记录
-        document.getElementById('diaper-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const diaperTime = document.getElementById('diaper-time').value;
-            const diaperType = document.getElementById('diaper-type').value;
-            db.collection('diaperRecords').add({
-                userId: auth.currentUser.uid,
-                time: diaperTime,
-                type: diaperType
-            }).then(() => {
-                console.log('拉屎记录添加成功');
-                fetchRecords();
-            });
-        });
+        save() {
+            localStorage.setItem('feedingRecords', JSON.stringify(this.records));
+        }
+    }
 
-        // 获取记录并生成统计数据
-        function fetchRecords() {
-            let feedCount = 0;
-            let sleepCount = 0;
-            let diaperCount = 0;
+    // 界面类
+    class FeedingUI {
+        constructor(records) {
+            this.records = records;
+            this.form = document.getElementById('feedingForm');
+            this.recordsList = document.getElementById('recordsList');
+            this.sleepRecordsList = document.getElementById('sleepRecordsList');
+            this.diaperRecordsList = document.getElementById('diaperRecordsList');
+            this.setupCharts();
+            this.setupEventListeners();
+            this.refreshRecords();
+        }
 
-            // 获取喂养记录
-            db.collection('feedingRecords').where("userId", "==", auth.currentUser.uid).get().then(snapshot => {
-                feedCount = snapshot.docs.length;
-                console.log("喂养记录数量:", feedCount);
-                updateChart(feedCount, sleepCount, diaperCount);
-            });
-
-            // 获取睡眠记录
-            db.collection('sleepRecords').where("userId", "==", auth.currentUser.uid).get().then(snapshot => {
-                sleepCount = snapshot.docs.length;
-                console.log("睡眠记录数量:", sleepCount);
-                updateChart(feedCount, sleepCount, diaperCount);
-            });
-
-            // 获取拉屎记录
-            db.collection('diaperRecords').where("userId", "==", auth.currentUser.uid).get().then(snapshot => {
-                diaperCount = snapshot.docs.length;
-                console.log("拉屎记录数量:", diaperCount);
-                updateChart(feedCount, sleepCount, diaperCount);
+        setupEventListeners() {
+            this.form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleSubmit();
             });
         }
 
-        // 更新图表
-        function updateChart(feedCount, sleepCount, diaperCount) {
-            const ctx = document.getElementById('chart').getContext('2d');
-            const chart = new Chart(ctx, {
-                type: 'bar',
+        async handleSubmit() {
+            const amount = document.getElementById('amount').value;
+            const foodType = document.getElementById('foodType').value;
+            const notes = document.getElementById('notes').value;
+
+            if (!amount || amount <= 0) {
+                alert('请输入有效的喂养量');
+                return;
+            }
+
+            try {
+                await this.records.addRecord(amount, foodType, notes);
+                this.refreshRecords();
+                this.form.reset();
+            } catch (error) {
+                console.error("Error in handleSubmit:", error);
+            }
+        }
+
+        setupCharts() {
+            // 周统计图表
+            const weeklyCtx = document.getElementById('weeklyChartCanvas').getContext('2d');
+            const weeklyData = this.records.getWeeklyStats();
+            this.weeklyChart = new Chart(weeklyCtx, {
+                type: 'line',
                 data: {
-                    labels: ['喂养', '睡眠', '拉屎'],
+                    labels: weeklyData.days,
                     datasets: [{
-                        label: '每日记录次数',
-                        data: [feedCount, sleepCount, diaperCount],  // 用从 Firebase 获取的数据更新
-                        backgroundColor: ['rgba(255, 99, 132, 0.2)', 'rgba(54, 162, 235, 0.2)', 'rgba(255, 206, 86, 0.2)'],
-                        borderColor: ['rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)', 'rgba(255, 206, 86, 1)'],
-                        borderWidth: 1
+                        label: '每日总量 (ml)',
+                        data: weeklyData.amounts,
+                        borderColor: '#007bff',
+                        tension: 0.1
                     }]
                 },
                 options: {
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+
+            // 类型分布图表
+            const typeCtx = document.getElementById('typeChartCanvas').getContext('2d');
+            const typeData = this.records.getTypeDistribution();
+            this.typeChart = new Chart(typeCtx, {
+                type: 'pie',
+                data: {
+                    labels: typeData.labels,
+                    datasets: [{
+                        data: typeData.data,
+                        backgroundColor: ['#007bff', '#28a745', '#ffc107']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
                 }
             });
         }
+
+        updateStats() {
+            const stats = this.records.getTodayStats();
+            document.getElementById('todayTotal').textContent = stats.total;
+            document.getElementById('todayCount').textContent = stats.count;
+            document.getElementById('todayAvg').textContent = stats.avg;
+
+            // 更新图表
+            const weeklyData = this.records.getWeeklyStats();
+            this.weeklyChart.data.labels = weeklyData.days;
+            this.weeklyChart.data.datasets[0].data = weeklyData.amounts;
+            this.weeklyChart.update();
+
+            const typeData = this.records.getTypeDistribution();
+            this.typeChart.data.labels = typeData.labels;
+            this.typeChart.data.datasets[0].data = typeData.data;
+            this.typeChart.update();
+
+            // 更新睡眠统计
+            const sleepStats = this.records.getTodaySleepStats();
+            document.getElementById('todaySleepHours').textContent = sleepStats.totalHours;
+            document.getElementById('sleepCount').textContent = `${sleepStats.count} 次`;
+
+            // 更新排便统计
+            const diaperStats = this.records.getTodayDiaperStats();
+            document.getElementById('todayDiaperCount').textContent = diaperStats.count;
+        }
+
+        refreshRecords() {
+            // 更新记录列表
+            const todayRecords = this.records.getTodayRecords();
+            this.recordsList.innerHTML = todayRecords.map(record => `
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">
+                                ${new Date(record.timestamp).toLocaleTimeString()}
+                            </span>
+                            <span class="fw-bold">${record.amount}ml</span>
+                        </div>
+                        <div>${record.foodType}</div>
+                        ${record.notes ? `<div class="text-muted small">${record.notes}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            // 更新睡眠记录列表
+            const sleepStats = this.records.getTodaySleepStats();
+            this.sleepRecordsList.innerHTML = sleepStats.records.map(record => `
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">
+                                ${new Date(record.startTime).toLocaleTimeString()} - 
+                                ${new Date(record.endTime).toLocaleTimeString()}
+                            </span>
+                            <span class="fw-bold">${Math.round(record.duration / 60 * 10) / 10}小时</span>
+                        </div>
+                        ${record.notes ? `<div class="text-muted small">${record.notes}</div>` : ''}
+                    </div>
+                </div>
+            `).join('') || '<div class="text-center text-muted">暂无记录</div>';
+
+            // 更新排便记录列表
+            const diaperStats = this.records.getTodayDiaperStats();
+            this.diaperRecordsList.innerHTML = diaperStats.records.map(record => `
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">
+                                ${new Date(record.timestamp).toLocaleTimeString()}
+                            </span>
+                        </div>
+                        ${record.notes ? `<div class="text-muted small">${record.notes}</div>` : ''}
+                    </div>
+                </div>
+            `).join('') || '<div class="text-center text-muted">暂无记录</div>';
+
+            // 更新统计数据
+            this.updateStats();
+        }
+    }
+</script>
+<body>
+    <div class="container">
+        <!-- 记录页面 -->
+        <div id="recordPage" class="page active">
+            <h2 class="mb-4">添加记录</h2>
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form id="feedingForm">
+                        <div class="mb-3">
+                            <label class="form-label">喂养量 (ml)</label>
+                            <input type="number" class="form-control" id="amount" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">食物类型</label>
+                            <select class="form-select" id="foodType" required>
+                                <option value="母乳">母乳</option>
+                                <option value="配方奶">配方奶</option>
+                                <option value="辅食">辅食</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <input type="text" class="form-control" id="notes">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">添加记录</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">今日记录</div>
+                <div class="card-body" id="recordsList">
+                    <!-- 记录将在这里动态显示 -->
+                </div>
+            </div>
+
+            <!-- 今日睡眠记录 -->
+            <div class="card mb-4">
+                <div class="card-header">今日睡眠记录</div>
+                <div class="card-body" id="sleepRecordsList">
+                    <!-- 睡眠记录将在这里动态显示 -->
+                </div>
+            </div>
+
+            <!-- 今日排便记录 -->
+            <div class="card mb-4">
+                <div class="card-header">今日排便记录</div>
+                <div class="card-body" id="diaperRecordsList">
+                    <!-- 排便记录将在这里动态显示 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计页面 -->
+        <div id="statsPage" class="page">
+            <h2 class="mb-4">数据统计</h2>
+            
+            <!-- 统计卡片 -->
+            <div class="row mb-4">
+                <div class="col-4">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="todayTotal">0</div>
+                        <div class="stats-label">今日总量(ml)</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="todayCount">0</div>
+                        <div class="stats-label">今日次数</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="todayAvg">0</div>
+                        <div class="stats-label">平均量(ml)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 睡眠和排便统计卡片 -->
+            <div class="row mb-4">
+                <div class="col-6">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="todaySleepHours">0</div>
+                        <div class="stats-label">今日睡眠(小时)</div>
+                        <div class="stats-sub" id="sleepCount">0 次</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="todayDiaperCount">0</div>
+                        <div class="stats-label">今日排便次数</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 图表 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <ul class="nav nav-pills card-header-pills">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#weeklyChart" data-bs-toggle="tab">每日统计</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#typeChart" data-bs-toggle="tab">类型分布</a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="weeklyChart">
+                            <div class="chart-container">
+                                <canvas id="weeklyChartCanvas"></canvas>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="typeChart">
+                            <div class="chart-container">
+                                <canvas id="typeChartCanvas"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部导航 -->
+    <nav class="bottom-nav">
+        <div class="container">
+            <ul class="nav nav-pills nav-fill py-2">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#" onclick="showPage('recordPage')">
+                        记录
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showPage('statsPage')">
+                        统计
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 页面切换功能
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            document.getElementById(pageId).classList.add('active');
+            
+            // 更新导航栏激活状态
+            document.querySelectorAll('.bottom-nav .nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 如果切换到统计页面，更新图表
+            if (pageId === 'statsPage') {
+                app.updateStats();
+            }
+        }
+
+        // FeedingRecords 类（保持原有代码）...
+
+        // FeedingUI 类（保持原有代码）...
+
+        // 初始化应用
+        const app = new FeedingUI(new FeedingRecords());
     </script>
 </body>
 </html>
