@@ -110,11 +110,15 @@
         }
 
         async loadAllRecords() {
-            await Promise.all([
-                this.loadRecords(),
-                this.loadSleepRecords(),
-                this.loadDiaperRecords()
-            ]);
+            try {
+                await Promise.all([
+                    this.loadRecords(),
+                    this.loadSleepRecords(),
+                    this.loadDiaperRecords()
+                ]);
+            } catch (error) {
+                console.error("Error loading all records:", error);
+            }
         }
 
         async addSleepRecord(startTime, endTime, notes) {
@@ -259,11 +263,15 @@
 
         async loadDiaperRecords() {
             try {
-                const snapshot = await db.collection('diaper_records').orderBy('timestamp', 'desc').get();
+                const snapshot = await db.collection('diaper_records')
+                    .orderBy('timestamp', 'desc')
+                    .get();
+                
                 this.diaperRecords = snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 }));
+                
                 return this.diaperRecords;
             } catch (error) {
                 console.error("Error loading diaper records:", error);
@@ -456,52 +464,37 @@
             });
         }
 
-        updateStats() {
+        async updateStats() {
             try {
-                // 更新原有的统计数据
-                const todayStats = this.records.getTodayStats();
-                const todayCount = document.getElementById('todayCount');
-                const todayVolume = document.getElementById('todayVolume');
-                if (todayCount) todayCount.textContent = todayStats.count;
-                if (todayVolume) todayVolume.textContent = todayStats.volume;
-
-                // 更新睡眠统计
-                const sleepStats = this.records.getTodaySleepStats();
-                const todaySleepHours = document.getElementById('todaySleepHours');
-                const sleepCount = document.getElementById('sleepCount');
-                if (todaySleepHours) todaySleepHours.textContent = sleepStats.totalHours;
-                if (sleepCount) sleepCount.textContent = `${sleepStats.count} 次`;
-
-                // 更新排便统计
-                const diaperStats = this.records.getTodayDiaperStats();
-                const todayDiaperCount = document.getElementById('todayDiaperCount');
-                if (todayDiaperCount) todayDiaperCount.textContent = diaperStats.count;
+                // 确保数据已加载
+                await this.records.loadAllRecords();
 
                 // 更新图表
-                this.updateSleepChart();
-                this.updateDiaperChart();
+                await this.updateSleepChart();
+                await this.updateDiaperChart();
             } catch (error) {
                 console.error("Error updating stats:", error);
             }
         }
 
-        updateSleepChart() {
+        async updateSleepChart() {
             const chartCanvas = document.getElementById('sleepChart');
             if (!chartCanvas) return;
 
             const ctx = chartCanvas.getContext('2d');
             const last7Days = Array.from({length: 7}, (_, i) => {
                 const d = new Date();
-                d.setDate(d.getDate() - i);
+                d.setDate(d.getDate() - (6 - i)); // 修改为正确的日期顺序
                 return d;
-            }).reverse();
+            });
 
             const sleepData = last7Days.map(date => {
+                const dayStr = date.toDateString();
                 const dayRecords = this.records.sleepRecords.filter(record => 
-                    new Date(record.timestamp).toDateString() === date.toDateString()
+                    new Date(record.timestamp).toDateString() === dayStr
                 );
                 return {
-                    date: date.toLocaleDateString(),
+                    date: date.toLocaleDateString('zh-CN', {month: 'numeric', day: 'numeric'}),
                     hours: Math.round(dayRecords.reduce((sum, record) => sum + record.duration, 0) / 60 * 10) / 10
                 };
             });
@@ -523,6 +516,7 @@
                     }]
                 },
                 options: {
+                    responsive: true,
                     scales: {
                         y: {
                             beginAtZero: true
@@ -532,23 +526,24 @@
             });
         }
 
-        updateDiaperChart() {
+        async updateDiaperChart() {
             const chartCanvas = document.getElementById('diaperChart');
             if (!chartCanvas) return;
 
             const ctx = chartCanvas.getContext('2d');
             const last7Days = Array.from({length: 7}, (_, i) => {
                 const d = new Date();
-                d.setDate(d.getDate() - i);
+                d.setDate(d.getDate() - (6 - i)); // 修改为正确的日期顺序
                 return d;
-            }).reverse();
+            });
 
             const diaperData = last7Days.map(date => {
+                const dayStr = date.toDateString();
                 const dayRecords = this.records.diaperRecords.filter(record => 
-                    new Date(record.timestamp).toDateString() === date.toDateString()
+                    new Date(record.timestamp).toDateString() === dayStr
                 );
                 return {
-                    date: date.toLocaleDateString(),
+                    date: date.toLocaleDateString('zh-CN', {month: 'numeric', day: 'numeric'}),
                     count: dayRecords.length
                 };
             });
@@ -570,6 +565,7 @@
                     }]
                 },
                 options: {
+                    responsive: true,
                     scales: {
                         y: {
                             beginAtZero: true,
