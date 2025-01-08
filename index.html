@@ -347,6 +347,102 @@
             // 更新排便统计
             const diaperStats = this.records.getTodayDiaperStats();
             document.getElementById('todayDiaperCount').textContent = diaperStats.count;
+
+            // 更新睡眠图表
+            this.updateSleepChart();
+            // 更新排便图表
+            this.updateDiaperChart();
+        }
+
+        updateSleepChart() {
+            const ctx = document.getElementById('sleepChart').getContext('2d');
+            const last7Days = Array.from({length: 7}, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                return d;
+            }).reverse();
+
+            const sleepData = last7Days.map(date => {
+                const dayRecords = this.records.sleepRecords.filter(record => 
+                    new Date(record.timestamp).toDateString() === date.toDateString()
+                );
+                return {
+                    date: date.toLocaleDateString(),
+                    hours: Math.round(dayRecords.reduce((sum, record) => sum + record.duration, 0) / 60 * 10) / 10
+                };
+            });
+
+            if (this.sleepChart) {
+                this.sleepChart.destroy();
+            }
+
+            this.sleepChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sleepData.map(d => d.date),
+                    datasets: [{
+                        label: '睡眠时长(小时)',
+                        data: sleepData.map(d => d.hours),
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        updateDiaperChart() {
+            const ctx = document.getElementById('diaperChart').getContext('2d');
+            const last7Days = Array.from({length: 7}, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                return d;
+            }).reverse();
+
+            const diaperData = last7Days.map(date => {
+                const dayRecords = this.records.diaperRecords.filter(record => 
+                    new Date(record.timestamp).toDateString() === date.toDateString()
+                );
+                return {
+                    date: date.toLocaleDateString(),
+                    count: dayRecords.length
+                };
+            });
+
+            if (this.diaperChart) {
+                this.diaperChart.destroy();
+            }
+
+            this.diaperChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: diaperData.map(d => d.date),
+                    datasets: [{
+                        label: '排便次数',
+                        data: diaperData.map(d => d.count),
+                        backgroundColor: 'rgba(255, 206, 86, 0.2)',
+                        borderColor: 'rgba(255, 206, 86, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         refreshRecords() {
@@ -440,20 +536,58 @@
                 </div>
             </div>
 
-            <!-- 今日睡眠记录 -->
+            <!-- 睡眠记录表单 -->
             <div class="card mb-4">
-                <div class="card-header">今日睡眠记录</div>
-                <div class="card-body" id="sleepRecordsList">
-                    <!-- 睡眠记录将在这里动态显示 -->
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>睡眠记录</span>
+                    <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#sleepFormCollapse">
+                        <i class="fas fa-plus"></i> 添加
+                    </button>
                 </div>
+                <div class="collapse" id="sleepFormCollapse">
+                    <div class="card-body">
+                        <form id="sleepForm">
+                            <div class="row">
+                                <div class="col-6 mb-3">
+                                    <label class="form-label">开始时间</label>
+                                    <input type="datetime-local" class="form-control" id="sleepStart" required>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label class="form-label">结束时间</label>
+                                    <input type="datetime-local" class="form-control" id="sleepEnd" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">备注</label>
+                                <input type="text" class="form-control" id="sleepNotes">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">添加睡眠记录</button>
+                        </form>
+                    </div>
+                </div>
+                <div id="sleepRecordsList" class="list-group list-group-flush"></div>
             </div>
 
-            <!-- 今日排便记录 -->
+            <!-- 排便记录表单 -->
             <div class="card mb-4">
-                <div class="card-header">今日排便记录</div>
-                <div class="card-body" id="diaperRecordsList">
-                    <!-- 排便记录将在这里动态显示 -->
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>排便记录</span>
+                    <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#diaperFormCollapse">
+                        <i class="fas fa-plus"></i> 添加
+                    </button>
                 </div>
+                <div class="collapse" id="diaperFormCollapse">
+                    <div class="card-body">
+                        <form id="diaperForm">
+                            <div class="mb-3">
+                                <label class="form-label">备注</label>
+                                <input type="text" class="form-control" id="diaperNotes">
+                            </div>
+                            <button type="submit" class="btn btn-warning w-100">记录大便</button>
+                        </form>
+                    </div>
+                </div>
+                <div id="diaperRecordsList" class="list-group list-group-flush"></div>
             </div>
         </div>
 
@@ -525,6 +659,22 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- 睡眠统计图表 -->
+            <div class="card mb-4">
+                <div class="card-header">睡眠统计</div>
+                <div class="card-body">
+                    <canvas id="sleepChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 排便统计图表 -->
+            <div class="card mb-4">
+                <div class="card-header">排便统计</div>
+                <div class="card-body">
+                    <canvas id="diaperChart"></canvas>
                 </div>
             </div>
         </div>
