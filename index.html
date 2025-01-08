@@ -276,7 +276,7 @@
             };
             
             this.setupEventListeners();
-            this.setupNavigation();
+            this.setupPageNavigation();
             this.refreshRecords();
         }
 
@@ -404,39 +404,39 @@
         }
 
         updateStats() {
-            const stats = this.records.getTodayStats();
-            document.getElementById('todayTotal').textContent = stats.total;
-            document.getElementById('todayCount').textContent = stats.count;
-            document.getElementById('todayAvg').textContent = stats.avg;
+            try {
+                // 更新原有的统计数据
+                const todayStats = this.records.getTodayStats();
+                const todayCount = document.getElementById('todayCount');
+                const todayVolume = document.getElementById('todayVolume');
+                if (todayCount) todayCount.textContent = todayStats.count;
+                if (todayVolume) todayVolume.textContent = todayStats.volume;
 
-            // 更新图表
-            const weeklyData = this.records.getWeeklyStats();
-            this.weeklyChart.data.labels = weeklyData.days;
-            this.weeklyChart.data.datasets[0].data = weeklyData.amounts;
-            this.weeklyChart.update();
+                // 更新睡眠统计
+                const sleepStats = this.records.getTodaySleepStats();
+                const todaySleepHours = document.getElementById('todaySleepHours');
+                const sleepCount = document.getElementById('sleepCount');
+                if (todaySleepHours) todaySleepHours.textContent = sleepStats.totalHours;
+                if (sleepCount) sleepCount.textContent = `${sleepStats.count} 次`;
 
-            const typeData = this.records.getTypeDistribution();
-            this.typeChart.data.labels = typeData.labels;
-            this.typeChart.data.datasets[0].data = typeData.data;
-            this.typeChart.update();
+                // 更新排便统计
+                const diaperStats = this.records.getTodayDiaperStats();
+                const todayDiaperCount = document.getElementById('todayDiaperCount');
+                if (todayDiaperCount) todayDiaperCount.textContent = diaperStats.count;
 
-            // 更新睡眠统计
-            const sleepStats = this.records.getTodaySleepStats();
-            document.getElementById('todaySleepHours').textContent = sleepStats.totalHours;
-            document.getElementById('sleepCount').textContent = `${sleepStats.count} 次`;
-
-            // 更新排便统计
-            const diaperStats = this.records.getTodayDiaperStats();
-            document.getElementById('todayDiaperCount').textContent = diaperStats.count;
-
-            // 更新睡眠图表
-            this.updateSleepChart();
-            // 更新排便图表
-            this.updateDiaperChart();
+                // 更新图表
+                this.updateSleepChart();
+                this.updateDiaperChart();
+            } catch (error) {
+                console.error("Error updating stats:", error);
+            }
         }
 
         updateSleepChart() {
-            const ctx = document.getElementById('sleepChart').getContext('2d');
+            const chartCanvas = document.getElementById('sleepChart');
+            if (!chartCanvas) return;
+
+            const ctx = chartCanvas.getContext('2d');
             const last7Days = Array.from({length: 7}, (_, i) => {
                 const d = new Date();
                 d.setDate(d.getDate() - i);
@@ -480,7 +480,10 @@
         }
 
         updateDiaperChart() {
-            const ctx = document.getElementById('diaperChart').getContext('2d');
+            const chartCanvas = document.getElementById('diaperChart');
+            if (!chartCanvas) return;
+
+            const ctx = chartCanvas.getContext('2d');
             const last7Days = Array.from({length: 7}, (_, i) => {
                 const d = new Date();
                 d.setDate(d.getDate() - i);
@@ -527,57 +530,76 @@
         }
 
         refreshRecords() {
-            // 更新记录列表
-            const todayRecords = this.records.getTodayRecords();
-            this.recordsList.innerHTML = todayRecords.map(record => `
-                <div class="card mb-2">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between">
-                            <span class="text-muted">
-                                ${new Date(record.timestamp).toLocaleTimeString()}
-                            </span>
-                            <span class="fw-bold">${record.amount}ml</span>
-                        </div>
-                        <div>${record.foodType}</div>
-                        ${record.notes ? `<div class="text-muted small">${record.notes}</div>` : ''}
-                    </div>
-                </div>
-            `).join('');
+            // 更新喂奶记录
+            const feedingList = document.getElementById('feedingRecordsList');
+            if (feedingList) {
+                // ... existing feeding records code ...
+            }
 
             // 更新睡眠记录列表
-            const sleepStats = this.records.getTodaySleepStats();
-            this.sleepRecordsList.innerHTML = sleepStats.records.map(record => `
-                <div class="card mb-2">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between">
-                            <span class="text-muted">
+            if (this.sleepRecordsList) {
+                const sleepStats = this.records.getTodaySleepStats();
+                this.sleepRecordsList.innerHTML = sleepStats.records.map(record => `
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>
                                 ${new Date(record.startTime).toLocaleTimeString()} - 
                                 ${new Date(record.endTime).toLocaleTimeString()}
                             </span>
-                            <span class="fw-bold">${Math.round(record.duration / 60 * 10) / 10}小时</span>
-                        </div>
-                        ${record.notes ? `<div class="text-muted small">${record.notes}</div>` : ''}
-                    </div>
-                </div>
-            `).join('') || '<div class="text-center text-muted">暂无记录</div>';
-
-            // 更新排便记录列表
-            const diaperStats = this.records.getTodayDiaperStats();
-            this.diaperRecordsList.innerHTML = diaperStats.records.map(record => `
-                <div class="card mb-2">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between">
-                            <span class="text-muted">
-                                ${new Date(record.timestamp).toLocaleTimeString()}
+                            <span class="badge bg-primary rounded-pill">
+                                ${Math.round(record.duration / 60 * 10) / 10}小时
                             </span>
                         </div>
-                        ${record.notes ? `<div class="text-muted small">${record.notes}</div>` : ''}
+                        ${record.notes ? `<small class="text-muted">${record.notes}</small>` : ''}
                     </div>
-                </div>
-            `).join('') || '<div class="text-center text-muted">暂无记录</div>';
+                `).join('') || '<div class="list-group-item text-center text-muted">暂无记录</div>';
+            }
+
+            // 更新排便记录列表
+            if (this.diaperRecordsList) {
+                const diaperStats = this.records.getTodayDiaperStats();
+                this.diaperRecordsList.innerHTML = diaperStats.records.map(record => `
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>${new Date(record.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                        ${record.notes ? `<small class="text-muted">${record.notes}</small>` : ''}
+                    </div>
+                `).join('') || '<div class="list-group-item text-center text-muted">暂无记录</div>';
+            }
 
             // 更新统计数据
             this.updateStats();
+        }
+
+        setupPageNavigation() {
+            // 设置页面导航
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const targetPage = btn.getAttribute('data-page');
+                    this.showPage(targetPage);
+                });
+            });
+        }
+
+        showPage(pageId) {
+            // 隐藏所有页面
+            Object.values(this.pages).forEach(page => {
+                if (page) {
+                    page.classList.remove('active');
+                }
+            });
+            
+            // 显示目标页面
+            const targetPage = this.pages[pageId];
+            if (targetPage) {
+                targetPage.classList.add('active');
+            }
+
+            // 更新导航按钮状态
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-page') === pageId);
+            });
         }
     }
 </script>
